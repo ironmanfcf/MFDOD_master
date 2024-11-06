@@ -1,0 +1,6 @@
+include requirements/*.txt
+include MFDOD/VERSION
+include MFDOD/.mim/model-index.yml
+include MFDOD/.mim/demo/*/*
+recursive-include MFDOD/.mim/configs *.py *.yml
+recursive-include MFDOD/.mim/tools *.sh *.py
