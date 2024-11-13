@@ -19,7 +19,7 @@ def readme():
     return content
 
 
-version_file = 'MFDOD/version.py'
+version_file = 'MFOD/version.py'
 
 
 def get_version():
@@ -156,7 +156,7 @@ def add_mim_extension():
 
     filenames = ['tools', 'configs', 'demo', 'model-index.yml']
     repo_path = osp.dirname(__file__)
-    mim_path = osp.join(repo_path, 'MFDOD', '.mim')
+    mim_path = osp.join(repo_path, 'MFOD', '.mim')
     os.makedirs(mim_path, exist_ok=True)
 
     for filename in filenames:
@@ -186,7 +186,7 @@ def add_mim_extension():
 if __name__ == '__main__':
     add_mim_extension()
     setup(
-        name='MFDOD',
+        name='MFOD',
         version=get_version(),
         description='DeepInfrared Toolbox and Benchmark',
         long_description=readme(),
@@ -194,7 +194,7 @@ if __name__ == '__main__':
         author='GrokCV Contributors',
         author_email='yimian.dai@gmail.com',
         keywords='radar small target detection',
-        url='https://github.com/GrokCV/MFDOD',
+        url='https://github.com/GrokCV/MFOD',
         packages=find_packages(exclude=('configs', 'tools', 'demo')),
         include_package_data=True,
         classifiers=[

@@ -1,13 +1,13 @@
 # code-repo-template
 Toolkit for XXXX
 
-空的代码 Repo 模板，全局替换 `MFDOD` 即可 `python setup.py develop`
+空的代码 Repo 模板，全局替换 `MFOD` 即可 `python setup.py develop`
 
 - [Installation](#installation)
   - [Step 1: Create a conda environment](#step-1-create-a-conda-environment)
   - [Step 2: Install PyTorch](#step-2-install-pytorch)
   - [Step 3: Install OpenMMLab 2.x Codebases](#step-3-install-openmmlab-2x-codebases)
-  - [Step 4: Install `MFDOD`](#step-4-install-MFDOD)
+  - [Step 4: Install `MFOD`](#step-4-install-MFOD)
 - [Model Zoo and Benchmark](#model-zoo-and-benchmark)
   - [Leaderboard](#leaderboard)
   - [Model Zoo](#model-zoo)
@@ -20,8 +20,8 @@ Toolkit for XXXX
 ### Step 1: Create a conda environment
 
 ```shell
-$ conda create --name MFDOD python=3.9
-$ source activate MFDOD
+$ conda create --name MFOD python=3.9
+$ source activate MFOD
 ```
 
 ### Step 2: Install PyTorch
@@ -40,17 +40,17 @@ mim install mmengine "mmcv>=2.0.0" "mmdet>=3.0.0" "mmsegmentation>=1.0.0" "mmrot
 pip install -U ninja scikit-image --no-input
 ```
 
-### Step 4: Install `MFDOD`
+### Step 4: Install `MFOD`
 
 ```shell
 python setup.py develop
 ```
 
-**Note**: make sure you have `cd` to the root directory of `MFDOD`
+**Note**: make sure you have `cd` to the root directory of `MFOD`
 
 ```shell
-$ git clone git@github.com:GrokCV/MFDOD.git
-$ cd MFDOD
+$ git clone git@github.com:GrokCV/MFOD.git
+$ cd MFOD
 ```
 
 ## Model Zoo and Benchmark

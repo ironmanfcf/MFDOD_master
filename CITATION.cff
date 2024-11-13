@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 authors:
   - name: "DeepInfrared Contributors"
-title: "MFDOD Toolbox and Benchmark"
+title: "MFOD Toolbox and Benchmark"
 date-released: 2022-12-01
-url: "https://github.com/YimianDai/open-MFDOD"
+url: "https://github.com/YimianDai/open-MFOD"
 license: Apache-2.0

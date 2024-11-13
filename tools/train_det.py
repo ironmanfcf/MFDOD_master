@@ -1,8 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+
+
 import argparse
 import logging
 import os
 import os.path as osp
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 from mmengine.config import Config, DictAction
 from mmengine.logging import print_log
@@ -11,7 +15,12 @@ from mmengine.runner import Runner
 
 from mmdet.utils import setup_cache_size_limit_of_dynamo
 
-from MFDOD.datasets import *
+from MFOD.datasets import *
+from MFOD.models import *
+
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, [2,3]))
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
