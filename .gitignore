@@ -168,3 +168,4 @@ cython_debug/
 /work_dirs
 /runs
 /tools/dataset_vis
+/pretrained_weights

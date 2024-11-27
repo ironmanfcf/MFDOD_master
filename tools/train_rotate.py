@@ -4,6 +4,8 @@ import logging
 import os
 import os.path as osp
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+
 from mmdet.utils import register_all_modules as register_all_modules_mmdet
 from mmengine.config import Config, DictAction
 from mmengine.logging import print_log
@@ -12,10 +14,19 @@ from mmengine.runner import Runner
 
 from mmrotate.utils import register_all_modules
 
+from mfod.datasets import *
+from mfod.engine import *
+from mfod.evaluation import *
+from mfod.models import *
+from mfod.utils import *
+from mfod.visualization import *
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
-    parser.add_argument('config', help='train config file path')
+    parser.add_argument('--config',
+                        default='/opt/data/private/fcf/MFOD_master/configs/rotate_det/e2e_mfd/e2emfd_lsk_fpn_dronevehicle-dual_le90.py', 
+                        help='train config file path')
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument(
         '--amp',
