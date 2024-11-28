@@ -1,20 +1,20 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from .loading import LoadPatchFromImage, LoadImagePairFromFile
-from .transforms import  RResize
-from .utils import norm_angle
-from .formatting import PackMultiDetInputs
+from .loading import LoadPairedImageFromFile, LoadIRImageFromFile
+from .transforms import (PairedImagesResize,PairedImagesRandomResize,
+    PairedImagesRandomFlip, PairedImagesPad, 
+    PairedImageMultiScaleFlipAug)
+
+from .formatting import PackedPairedDataDetInputs
 
 
 
 __all__ = [
-    'LoadPatchFromImage', 'RResize', 'RRandomFlip', 
-    'LoadImagePairFromFile', 'DefaultFormatBundle_m',
-    'LoadDualAnnotations',
-    'norm_angle','PackMultiDetInputs'
     
-
-
-
+"LoadPairedImageFromFile", "LoadIRImageFromFile",
+"PairedImagesResize","PairedImagesRandomResize",
+"PairedImagesRandomFlip", "PairedImagesPad", 
+"PairedImageMultiScaleFlipAug",
+"PackedPairedDataDetInputs"
 
 ]
 

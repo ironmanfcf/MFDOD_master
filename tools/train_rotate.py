@@ -25,7 +25,7 @@ from mfod.visualization import *
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
     parser.add_argument('--config',
-                        default='/opt/data/private/fcf/MFOD_master/configs/rotate_det/e2e_mfd/e2emfd_lsk_fpn_dronevehicle-dual_le90.py', 
+                        default='/opt/data/private/fcf/MFOD_master/configs/rotate_det/C2Former/s2anet_c2former_fpn_1x_dota_le135.py', 
                         help='train config file path')
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument(

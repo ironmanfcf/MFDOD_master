@@ -22,7 +22,7 @@ from torch import Tensor
 from mmdet.structures import DetDataSample, OptSampleList, SampleList
 from mmdet.utils import InstanceList, OptConfigType, OptMultiConfig
 
-from .fusion import FusionNet
+from ..fusion.e2emfd_fusion import FusionNet
 from .loss import DetcropPixelLoss
 import matplotlib.pyplot as plt
 from mfod.registry import MODELS

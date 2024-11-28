@@ -6,45 +6,18 @@ from mmcv.transforms import to_tensor
 from mmcv.transforms.base import BaseTransform
 from mmengine.structures import InstanceData, PixelData
 
-
+from mfod.registry import TRANSFORMS
 from mmdet.structures import DetDataSample, ReIDDataSample, TrackDataSample
 from mmdet.structures.bbox import BaseBoxes
+from mmdet.datasets.transforms import PackDetInputs
 
-from mfod.registry import TRANSFORMS
-
+"""
+@author: changfeng feng
+"""
 @TRANSFORMS.register_module()
-class PackMultiDetInputs(BaseTransform):
-    """Pack the inputs data for the detection / semantic segmentation /
-    panoptic segmentation with multiple images.
-
-    The ``img_meta`` item is always populated. The contents of the
-    ``img_meta`` dictionary depends on ``meta_keys``. By default this includes:
-
-        - ``img_id``: id of the image
-        - ``img_path``: path to the image file
-        - ``ori_shape``: original shape of the image as a tuple (h, w)
-        - ``img_shape``: shape of the image input to the network as a tuple \
-            (h, w). Note that images may be zero padded on the \
-            bottom/right if the batch tensor is larger than this shape.
-        - ``scale_factor``: a float indicating the preprocessing scale
-        - ``flip``: a boolean indicating if image flip transform was used
-        - ``flip_direction``: the flipping direction
-
-    Args:
-        meta_keys (Sequence[str], optional): Meta keys to be converted to
-            ``mmcv.DataContainer`` and collected in ``data[img_metas]``.
-            Default: ``('img_id', 'img_path', 'ori_shape', 'img_shape',
-            'scale_factor', 'flip', 'flip_direction')``
-    """
-    mapping_table = {
-        'gt_bboxes': 'bboxes',
-        'gt_bboxes_labels': 'labels',
-        'gt_masks': 'masks'
-    }
-
-    def __init__(self,
-                 meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
-                            'scale_factor', 'flip', 'flip_direction')):
+class PackedPairedDataDetInputs(PackDetInputs):
+    def __init__(self, meta_keys=('img_id', 'img_path', 'img_ir_path',
+                                  'ori_shape', 'img_shape','img_shape_ir', 'scale_factor', 'flip', 'flip_direction')):
         self.meta_keys = meta_keys
 
     def transform(self, results: dict) -> dict:
@@ -53,28 +26,44 @@ class PackMultiDetInputs(BaseTransform):
         Args:
             results (dict): Result dict from the data pipeline.
 
-        Returns:
-            dict:
+        Returns:            dict:
 
             - 'inputs' (obj:`torch.Tensor`): The forward data of models.
             - 'data_sample' (obj:`DetDataSample`): The annotation info of the
                 sample.
         """
+
         packed_results = dict()
-        imgs = []
-        for key in results.get('img_fields', ['img']):
-            img = results[key]
+        if 'img' in results:
+            img = results['img']
             if len(img.shape) < 3:
                 img = np.expand_dims(img, -1)
+            # To improve the computational speed by by 3-5 times, apply:
+            # If image is not contiguous, use
+            # `numpy.transpose()` followed by `numpy.ascontiguousarray()`
+            # If image is already contiguous, use
+            # `torch.permute()` followed by `torch.contiguous()`
+            # Refer to https://github.com/open-mmlab/mmdetection/pull/9533
+            # for more details
             if not img.flags.c_contiguous:
                 img = np.ascontiguousarray(img.transpose(2, 0, 1))
                 img = to_tensor(img)
             else:
                 img = to_tensor(img).permute(2, 0, 1).contiguous()
-            packed_results[key] = img
-            imgs.append(img)
 
-        packed_results['inputs'] = imgs
+            packed_results['inputs'] = img
+
+        if 'img_ir' in results:
+            img_ir = results['img_ir']
+            if len(img_ir.shape) < 3:
+                img_ir = np.expand_dims(img_ir, -1)
+
+            if not img_ir.flags.c_contiguous:
+                img_ir = np.ascontiguousarray(img_ir.transpose(2, 0, 1))
+                img_ir = to_tensor(img_ir)
+            else:
+                img_ir = to_tensor(img_ir).permute(2, 0, 1).contiguous()
+            packed_results['inputs_ir'] = img_ir
 
         if 'gt_ignore_flags' in results:
             valid_idx = np.where(results['gt_ignore_flags'] == 0)[0]
@@ -83,7 +72,8 @@ class PackMultiDetInputs(BaseTransform):
         data_sample = DetDataSample()
         instance_data = InstanceData()
         ignore_instance_data = InstanceData()
-
+        # import pdb
+        # pdb.set_trace()
         for key in self.mapping_table.keys():
             if key not in results:
                 continue
@@ -124,14 +114,13 @@ class PackMultiDetInputs(BaseTransform):
 
         img_meta = {}
         for key in self.meta_keys:
-            if key in results:
-                img_meta[key] = results[key]
+            assert key in results, f'`{key}` is not found in `results`, ' \
+                                   f'the valid keys are {list(results)}.'
+            img_meta[key] = results[key]
+
         data_sample.set_metainfo(img_meta)
         packed_results['data_samples'] = data_sample
 
-        return packed_results
+        return packed_results  # 输入模型的字典?
 
-    def __repr__(self) -> str:
-        repr_str = self.__class__.__name__
-        repr_str += f'(meta_keys={self.meta_keys})'
-        return repr_str
+

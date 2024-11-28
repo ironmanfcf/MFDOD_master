@@ -19,12 +19,9 @@ import glob
 import os.path as osp
 from typing import List
 
-
-
-
 @DATASETS.register_module()
 class VEDAIDataset(BaseDataset):
-    """DroneVehicle dataset for detection.
+    """vedai dataset for detection.
 
     Note: ``ann_file`` in DOTADataset is different from the BaseDataset.
     In BaseDataset, it is the path of an annotation file. In DOTADataset,

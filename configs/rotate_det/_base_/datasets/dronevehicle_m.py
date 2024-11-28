@@ -1,56 +1,69 @@
 # dataset settings
-dataset_type = 'DroneVehicleDataset'
-data_root = "/opt/data/private/fcf/E2E-MFD/tools/data/dronevehicle/" 
-img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
-# train_pipeline = [
-#     dict(type='LoadImagePairFromFile', spectrals=('rgb', 'ir')),
-#     dict(type='LoadAnnotations', with_bbox=True),
-#     dict(type='RResize', img_scale=(712, 840)),
-#     dict(type='RRandomFlip', flip_ratio=0.5),
-#     dict(type='Normalize', **img_norm_cfg),
-#     dict(type='Pad', size_divisor=32),
-#     dict(type='DefaultFormatBundle_m'),
-#     dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels'])
-# ]
+dataset_type = 'mfod.MMDroneVehicleDataset'
+data_root = '/opt/data/private/fcf/MFOD_master/data/dronevehicle/'
+backend_args = None
+
 train_pipeline = [
-    dict(type='LoadImagePairFromFile', spectrals=('rgb', 'ir')),
-    dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='RResize', img_scale=(712, 840)),
-    dict(type='Normalize', **img_norm_cfg),
-    dict(type='Pad', size_divisor=32),
-    dict(type='DefaultFormatBundle_m'),   #这个是用于img: (1)transpose, (2)to tensor, (3)to DataContainer (stack=True)
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels'])
-]
-test_pipeline = [
-    dict(type='LoadImagePairFromFile', spectrals=('rgb', 'ir')),
+    dict(type='mfod.LoadPairedImageFromFile'),
+    dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
+    dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),    
+    dict(type='mfod.PairedImagesResize', scale=(712, 840), keep_ratio=True),
     dict(
-        type='MultiScaleFlipAug',
-        img_scale=(712, 840),
-        flip=False,
-        transforms=[
-            dict(type='RResize'),
-            dict(type='Normalize', **img_norm_cfg),
-            dict(type='Pad', size_divisor=32),
-            dict(type='DefaultFormatBundle_m'),
-            dict(type='Collect', keys=['img'])
-        ])
+        type='mfod.PairedImagesRandomFlip',
+        prob=0.5,
+        direction=['horizontal', 'vertical', 'diagonal']),
+    dict(type='mfod.PackedPairedDataDetInputs')
 ]
-data = dict(
-    samples_per_gpu=1,  #batchsize
-    workers_per_gpu=8,
-    train=dict(
+
+val_pipeline = [
+    dict(type='mfod.LoadPairedImageFromFile', backend_args=backend_args),
+    dict(type='mfod.PairedImagesResize', scale=(712, 840), keep_ratio=True),    
+    dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
+    dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),
+    dict(
+        type='mfod.PackedPairedDataDetInputs',
+        meta_keys=('img_id', 'img_path', 'img_ir_path',
+                                  'ori_shape', 'img_shape','img_shape_ir', 'scale_factor'))
+]
+
+test_pipeline = [
+    dict(type='mfod.LoadPairedImageFromFile', backend_args=backend_args),
+    dict(type='mfod.PairedImagesResize', scale=(712, 840), keep_ratio=True),  
+    dict(
+        type='mfod.PackedPairedDataDetInputs',
+        meta_keys=('img_id', 'img_path', 'img_ir_path',
+                                  'ori_shape', 'img_shape','img_shape_ir', 'scale_factor'))
+]
+
+train_dataloader = dict(
+    batch_size=2,
+    num_workers=2,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=True),
+    batch_sampler=None,
+    dataset=dict(
         type=dataset_type,
-        ann_file=data_root + 'train/ir/labels/',    
-        img_prefix=data_root + 'train/rgb/images/',           
-        pipeline=train_pipeline),          
-    val=dict(
+        data_root=data_root,
+        ann_file=data_root + 'train/ir/labels/',
+        # data_prefix=dict(img_path=data_root + 'train/rgb/images/'),
+        data_prefix=dict(img_path='train/rgb/images/', img_ir_path='train/ir/images/'),
+        filter_cfg=dict(filter_empty_gt=True),
+        pipeline=train_pipeline))
+
+val_dataloader = dict(
+    batch_size=1,
+    num_workers=2,
+    persistent_workers=True,
+    drop_last=False,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
         type=dataset_type,
-        ann_file=data_root + 'test/ir/lables/',     
-        img_prefix=data_root + 'test/rgb/images/',              
-        pipeline=test_pipeline),
-    test=dict(
-        type=dataset_type,
-        ann_file=data_root + 'test/ir/lables/',     
-        img_prefix=data_root + 'test/rgb/images/',
-        pipeline=test_pipeline))
+        data_root=data_root,
+        ann_file=data_root + 'test/rgb/labels/',
+        data_prefix=dict(img_path='train/rgb/images/', img_ir_path='train/ir/images/'),
+        test_mode=True,
+        pipeline=val_pipeline))
+test_dataloader = val_dataloader
+
+val_evaluator = dict(type='DOTAMetric', metric='mAP')
+test_evaluator = val_evaluator
