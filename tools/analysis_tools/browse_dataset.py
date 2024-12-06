@@ -1,6 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import os.path as osp
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 from mmengine.config import Config, DictAction
 from mmengine.registry import init_default_scope
@@ -10,8 +12,8 @@ from mmdet.models.utils import mask2ndarray
 from mmdet.registry import DATASETS, VISUALIZERS
 from mmdet.structures.bbox import BaseBoxes
 
-from MFOD.datasets import *
-from MFOD.models import *
+from mfod.datasets import *
+from mfod.models import *
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Browse a dataset')
@@ -56,7 +58,8 @@ def main():
 
     progress_bar = ProgressBar(len(dataset))
     for item in dataset:
-        img = item['inputs'].permute(1, 2, 0).numpy()
+        img = item['inputs_ir'].permute(1, 2, 0).numpy()
+        # img = item['inputs'].permute(1, 2, 0).numpy()
         data_sample = item['data_samples'].numpy()
         gt_instances = data_sample.gt_instances
         img_path = osp.basename(item['data_samples'].img_path)

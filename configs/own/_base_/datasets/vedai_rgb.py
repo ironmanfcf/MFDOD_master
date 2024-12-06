@@ -1,13 +1,14 @@
 # dataset settings
-dataset_type = 'mfod.DroneVehicleDataset'
-data_root = '/opt/data/private/fcf/MFOD_master/data/dronevehicle/'
+dataset_type = 'mfod.VEDAIDataset'
+data_root = '/opt/data/private/fcf/MFOD_master/data/VEDAI/VEDAI1024/'
 backend_args = None
+
 
 train_pipeline = [
     dict(type='mmdet.LoadImageFromFile'),
     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
     dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),    
-    dict(type='mmdet.Resize', scale=(712, 840), keep_ratio=True),
+    dict(type='mmdet.Resize', scale=(1024, 1024), keep_ratio=True),
     dict(
         type='mmdet.RandomFlip',
         prob=0.5,
@@ -17,7 +18,7 @@ train_pipeline = [
 
 val_pipeline = [
     dict(type='mmdet.LoadImageFromFile', backend_args=backend_args),
-    dict(type='mmdet.Resize', scale=(712, 840), keep_ratio=True),    
+    dict(type='mmdet.Resize', scale=(1024, 1024), keep_ratio=True),    
     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
     dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),
     dict(
@@ -28,7 +29,7 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='mmdet.LoadImageFromFile', backend_args=backend_args),
-    dict(type='mmdet.Resize', scale=(712, 840), keep_ratio=True),    
+    dict(type='mmdet.Resize', scale=(1024, 1024), keep_ratio=True),    
     dict(
         type='mmdet.PackDetInputs',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
@@ -44,8 +45,8 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'train/labels/',
-        data_prefix=dict(img_path=data_root + 'train/ir/images/'),
+        ann_file=data_root + 'train/rgb/labels/',
+        data_prefix=dict(img_path=data_root + 'train/rgb/images/'),
         filter_cfg=dict(filter_empty_gt=True),
         pipeline=train_pipeline))
 
@@ -58,8 +59,8 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'test/labels/',
-        data_prefix=dict(img_path=data_root + 'test/ir/images/'),
+        ann_file=data_root + 'test/rgb/labels/',
+        data_prefix=dict(img_path=data_root + 'test/rgb/images/'),
         test_mode=True,
         pipeline=val_pipeline))
 test_dataloader = val_dataloader

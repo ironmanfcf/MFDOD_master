@@ -4,7 +4,7 @@ from typing import List, Union, Optional, Sequence, Mapping, Callable
 
 from mmengine.fileio import get_local_path
 from mfod.registry import DATASETS
-from mmdet.datasets.base_det_dataset import BaseDetDataset
+
 from .multimodality_obb_dataset import MultiModalityOBBDataset
 
 @DATASETS.register_module()
@@ -20,4 +20,4 @@ class MMDroneVehicleDataset(MultiModalityOBBDataset):
                  **kwargs) -> None:
         self.diff_thr = diff_thr
         self.img_suffix = img_suffix
-        super().__init__(**kwargs)
+        super().__init__(img_suffix=img_suffix,**kwargs)

@@ -46,7 +46,7 @@ model = dict(
         num_outs=5),
     bbox_head_init=dict(
         type='S2AHead',
-        num_classes=15,
+        num_classes=9,
         in_channels=256,
         stacked_convs=2,
         feat_channels=256,
@@ -138,15 +138,15 @@ model = dict(
         max_per_img=2000))
 
 
-dataset_type = 'mfod.MMDroneVehicleDataset'
-data_root = '/opt/data/private/fcf/MFOD_master/data/dronevehicle/'
+dataset_type = 'mfod.MMVEDAIDataset'
+data_root = '/opt/data/private/fcf/MFOD_master/data/VEDAI/VEDAI1024/'
 backend_args = None
 
 train_pipeline = [
     dict(type='mfod.LoadPairedImageFromFile'),
     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
     dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),    
-    dict(type='mfod.PairedImagesResize', scale=(512, 640), keep_ratio=True),
+    dict(type='mfod.PairedImagesResize', scale=(512, 512), keep_ratio=True),
     dict(
         type='mfod.PairedImagesRandomFlip',
         prob=0.5,
@@ -156,7 +156,7 @@ train_pipeline = [
 
 val_pipeline = [
     dict(type='mfod.LoadPairedImageFromFile', backend_args=backend_args),
-    dict(type='mfod.PairedImagesResize', scale=(512, 640), keep_ratio=True),    
+    dict(type='mfod.PairedImagesResize', scale=(512, 512), keep_ratio=True),    
     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
     dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),
     dict(
@@ -167,7 +167,7 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='mfod.LoadPairedImageFromFile', backend_args=backend_args),
-    dict(type='mfod.PairedImagesResize', scale=(512, 640), keep_ratio=True),  
+    dict(type='mfod.PairedImagesResize', scale=(512, 512), keep_ratio=True),  
     dict(
         type='mfod.PackedPairedDataDetInputs',
         meta_keys=('img_id', 'img_path', 'img_ir_path',
@@ -175,8 +175,8 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=2,
+    batch_size=4,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     batch_sampler=None,
@@ -199,7 +199,7 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         ann_file=data_root + 'test/rgb/labels/',
-        data_prefix=dict(img_path='train/rgb/images/', img_ir_path='train/ir/images/'),
+        data_prefix=dict(img_path='test/rgb/images/', img_ir_path='test/ir/images/'),
         test_mode=True,
         pipeline=val_pipeline))
 test_dataloader = val_dataloader
@@ -212,7 +212,7 @@ test_evaluator = val_evaluator
 # train_pipeline = [
 #     dict(type='LoadPairedImageFromFile'),
 #     dict(type='LoadAnnotations', with_bbox=True),
-#     dict(type='RResize', img_scale=(512, 640)),
+#     dict(type='RResize', img_scale=(512, 512)),
 #     dict(
 #         type='RRandomFlip',
 #         flip_ratio=[0.25, 0.25, 0.25],
@@ -228,7 +228,7 @@ test_evaluator = val_evaluator
 #     dict(type='LoadPairedImageFromFile'),
 #     dict(
 #         type='MultiScaleFlipAug',
-#         img_scale=(512, 640),
+#         img_scale=(512, 512),
 #         flip=False,
 #         transforms=[
 #             dict(type='RResize'),

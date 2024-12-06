@@ -183,14 +183,22 @@ class PairedImagesResize(MMDET_Resize):
         """Resize infrared images with ``results['scale']``."""
         if 'img_ir' in results:
             if self.keep_ratio:
-                results['img_ir'], scale_factor = mmcv.imrescale(
-                    results['img_ir'], results['scale'], return_scale=True, backend=self.backend, interpolation=self.interpolation)
-                results['scale_factor_ir'] = (scale_factor, scale_factor)
+                img_ir, scale_factor = mmcv.imrescale(
+                        results['img_ir'], results['scale'], return_scale=True,
+                        backend=self.backend, interpolation=self.interpolation)
+                new_h, new_w = img_ir.shape[:2]
+                h, w = results['img_ir'].shape[:2]
+                w_scale_ir = new_w / w
+                h_scale_ir = new_h / h                
             else:
-                results['img_ir'], w_scale, h_scale = mmcv.imresize(
+                img_ir, w_scale_ir, h_scale_ir = mmcv.imresize(
                     results['img_ir'], results['scale'], return_scale=True, backend=self.backend, interpolation=self.interpolation)
-                results['scale_factor_ir'] = (w_scale, h_scale)
-            results['img_shape_ir'] = results['img_ir'].shape[:2]
+ 
+            results['img_ir'] = img_ir
+            results['img_shape_ir'] = img_ir.shape[:2]
+            results['scale_factor'] = (w_scale_ir, h_scale_ir)
+            results['keep_ratio'] = self.keep_ratio 
+                           
 
     @autocast_box_type()
     def transform(self, results: dict) -> dict:

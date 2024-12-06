@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/dronevehicle_ir.py', '../_base_/schedules/schedule_1x.py',
+    '../_base_/datasets/dronevehicle_clip_ir.py', '../_base_/schedules/schedule_1x.py',
     '../_base_/default_runtime.py'
 ]
 
@@ -14,16 +14,18 @@ model = dict(
         pad_size_divisor=32,
         boxtype2tensor=False),
     backbone=dict(
-        type='mfod.LSKNet',
-        embed_dims=[64, 128, 320, 512],
-        drop_rate=0.1,
-        drop_path_rate=0.1,
-        depths=[2,2,4,2],
-        init_cfg=dict(type='Pretrained', checkpoint="/opt/data/private/fcf/MFOD_master/pretrained_weights/lsk_s_backbone-e9d2e551.pth"),
-        norm_cfg=dict(type='BN', requires_grad=True)),
+        type='mmdet.ResNet',
+        depth=50,
+        num_stages=4,
+        out_indices=(0, 1, 2, 3),
+        frozen_stages=1,
+        norm_cfg=dict(type='BN', requires_grad=True),
+        norm_eval=True,
+        style='pytorch',
+        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
     neck=dict(
         type='mmdet.FPN',
-        in_channels=[64, 128, 320, 512],
+        in_channels=[256, 512, 1024, 2048],
         out_channels=256,
         num_outs=5),
     rpn_head=dict(
@@ -114,7 +116,6 @@ model = dict(
                 min_pos_iou=0.5,
                 match_low_quality=False,
                 iou_calculator=dict(type='RBboxOverlaps2D'),
-                gpu_assign_thr=800,
                 ignore_iof_thr=-1),
             sampler=dict(
                 type='mmdet.RandomSampler',
@@ -137,40 +138,27 @@ model = dict(
             nms=dict(type='nms_rotated', iou_threshold=0.1),
             max_per_img=2000)))
 
+optim_wrapper = dict(optimizer=dict(lr=0.005))
 
-# optimizer
-optim_wrapper = dict(
-    type='OptimWrapper',
-    optimizer=dict(type='AdamW', _delete_=True, lr=0.0001, betas=(0.9, 0.999), weight_decay=0.05),
-    clip_grad=dict(max_norm=35, norm_type=2))
-
-dataset_type = 'mfod.DroneVehicleDataset'
-data_root = '/opt/data/private/fcf/MFOD_master/data/dronevehicle/'
-backend_args = None
-
-train_pipeline = [
-    dict(type='mmdet.LoadImageFromFile'),
-    dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
-    dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),    
-    dict(type='mmdet.Resize', scale=(712, 840), keep_ratio=True),
+vis_backends = [
+    dict(type='LocalVisBackend'),
     dict(
-        type='mmdet.RandomFlip',
-        prob=0.5,
-        direction=['horizontal', 'vertical', 'diagonal']),
-    dict(type='mmdet.PackDetInputs')
+        init_kwargs=dict(
+            group='ir',
+            name='oriented-rcnn-le90_r50_fpn_1x_dronevehicle_clip-ir',
+            project='DroneVehicle_clip'),
+        type='WandbVisBackend'),
 ]
-
-
-train_dataloader = dict(
-    batch_size=8,
-    num_workers=8,
-    persistent_workers=True,
-    sampler=dict(type='DefaultSampler', shuffle=True),
-    batch_sampler=None,
-    dataset=dict(
-        type=dataset_type,
-        data_root=data_root,
-        ann_file=data_root + 'train/labels/',
-        data_prefix=dict(img_path=data_root + 'train/ir/images/'),
-        filter_cfg=dict(filter_empty_gt=True),
-        pipeline=train_pipeline))
+visualizer = dict(
+    name='visualizer',
+    type='RotLocalVisualizer',
+    vis_backends=[
+        dict(type='LocalVisBackend'),
+        dict(
+            init_kwargs=dict(
+                group='ir',
+                name='oriented-rcnn-le90_r50_fpn_1x_dronevehicle_clip-ir',
+                project='DroneVehicle_clip'),
+            type='WandbVisBackend'),
+    ])
+work_dir = '/opt/data/private/fcf/MFOD_master/tools/work_dirs/dronevehicle_clip/oriented-rcnn-le90_r50_fpn_1x_dronevehicle_clip-ir'

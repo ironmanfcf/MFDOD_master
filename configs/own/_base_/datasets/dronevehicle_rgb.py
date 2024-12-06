@@ -44,8 +44,8 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'train/labels/',
-        data_prefix=dict(img_path=data_root + 'train/ir/images/'),
+        ann_file=data_root + 'train/rgb/labels/',
+        data_prefix=dict(img_path=data_root + 'train/rgb/images/'),
         filter_cfg=dict(filter_empty_gt=True),
         pipeline=train_pipeline))
 
@@ -58,8 +58,8 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'test/labels/',
-        data_prefix=dict(img_path=data_root + 'test/ir/images/'),
+        ann_file=data_root + 'test/rgb/labels/',
+        data_prefix=dict(img_path=data_root + 'test/rgb/images/'),
         test_mode=True,
         pipeline=val_pipeline))
 test_dataloader = val_dataloader

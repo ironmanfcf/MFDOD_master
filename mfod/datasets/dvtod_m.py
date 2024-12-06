@@ -25,5 +25,5 @@ class MMDVTODDataset(MultiModalityHBBDataset):
                  **kwargs) -> None:
         self.diff_thr = diff_thr
         self.img_suffix = img_suffix
-        super().__init__(**kwargs)
+        super().__init__(img_suffix=img_suffix,**kwargs)
 

@@ -8,7 +8,6 @@ __ https://ieeexplore.ieee.org/document/10472947/
 """
 
 from mfod.registry import MODELS
-from mmrotate.models.detectors import RefineSingleStageDetector
 import torch
 
 from mmdet.structures import OptSampleList, SampleList
@@ -18,6 +17,7 @@ from typing import List, Sequence, Tuple, Union, Dict
 from mmdet.structures import DetDataSample, OptSampleList, SampleList
 from torch import Tensor
 from mmdet.models.utils import unpack_gt_instances
+from .refine_single_stage_ts import RefineSingleStageDetectorTwoStream
 
 
 
@@ -25,7 +25,7 @@ ForwardResults = Union[Dict[str, torch.Tensor], List[DetDataSample],
                        Tuple[torch.Tensor], torch.Tensor]
 
 @MODELS.register_module()
-class C2Former(RefineSingleStageDetector):
+class C2Former(RefineSingleStageDetectorTwoStream):
 
 
     def __init__(self,
@@ -48,184 +48,6 @@ class C2Former(RefineSingleStageDetector):
             init_cfg=init_cfg
         )
 
-    def forward(self,
-                inputs: torch.Tensor,
-                inputs_ir: torch.Tensor,
-                data_samples: OptSampleList = None,
-                mode: str = 'tensor') -> ForwardResults:
-        """The unified entry for a forward process in both training and test.
-
-        The method should accept three modes: "tensor", "predict" and "loss":
-
-        - "tensor": Forward the whole network and return tensor or tuple of
-        tensor without any post-processing, same as a common nn.Module.
-        - "predict": Forward and return the predictions, which are fully
-        processed to a list of :obj:`DetDataSample`.
-        - "loss": Forward and return a dict of losses according to the given
-        inputs and data samples.
-
-        Note that this method doesn't handle either back propagation or
-        parameter update, which are supposed to be done in :meth:`train_step`.
-
-        Args:
-            inputs (torch.Tensor): The input tensor with shape
-                (N, C, ...) in general.
-            inputs_ir (torch.Tensor): The input tensor with shape
-                (N, C, ...) in general.
-            data_samples (list[:obj:`DetDataSample`], optional): A batch of
-                data samples that contain annotations and predictions.
-                Defaults to None.
-            mode (str): Return what kind of value. Defaults to 'tensor'.
-
-        Returns:
-            The return type depends on ``mode``.
-
-            - If ``mode="tensor"``, return a tensor or a tuple of tensor.
-            - If ``mode="predict"``, return a list of :obj:`DetDataSample`.
-            - If ``mode="loss"``, return a dict of tensor.
-        """
-        if mode == 'loss':
-            return self.loss(inputs, inputs_ir, data_samples)
-        elif mode == 'predict':
-            return self.predict(inputs, inputs_ir, data_samples)
-        elif mode == 'tensor':
-            return self._forward(inputs, inputs_ir, data_samples)
-        else:
-            raise RuntimeError(f'Invalid mode "{mode}". '
-                               'Only supports loss, predict and tensor mode')
-
-
-    def loss(self, batch_inputs: Tensor, batch_inputs_ir: Tensor,                 
-             batch_data_samples: SampleList) -> Union[dict, list]:
-        """Calculate losses from a batch of inputs and data samples.
-
-        Args:
-            batch_inputs (Tensor): Input images of shape (N, C, H, W).
-                These should usually be mean centered and std scaled.
-            batch_inputs_ir (Tensor): Input images of shape (N, C, H, W).
-            batch_data_samples (list[:obj:`DetDataSample`]): The batch
-                data samples. It usually includes information such
-                as `gt_instance` or `gt_panoptic_seg` or `gt_sem_seg`.
-
-        Returns:
-            dict: A dictionary of loss components.
-        """
-        x = self.extract_feat(batch_inputs,batch_inputs_ir)
-
-        losses = dict()
-        outs = self.bbox_head_init(x)
-        outputs = unpack_gt_instances(batch_data_samples)
-        (batch_gt_instances, batch_gt_instances_ignore,
-         batch_img_metas) = outputs
-        loss_inputs = outs + (batch_gt_instances, batch_img_metas,
-                              batch_gt_instances_ignore)
-        init_losses = self.bbox_head_init.loss_by_feat(*loss_inputs)
-        keys = init_losses.keys()
-        for key in list(keys):
-            if 'loss' in key and 'init' not in key:
-                init_losses[f'{key}_init'] = init_losses.pop(key)
-        losses.update(init_losses)
-
-        rois = self.bbox_head_init.filter_bboxes(*outs)
-        for i in range(self.num_refine_stages):
-            weight = self.train_cfg.stage_loss_weights[i]
-            x_refine = self.bbox_head_refine[i].feature_refine(x, rois)
-            outs = self.bbox_head_refine[i](x_refine)
-            loss_inputs = outs + (batch_gt_instances, batch_img_metas,
-                                  batch_gt_instances_ignore)
-            refine_losses = self.bbox_head_refine[i].loss_by_feat(
-                *loss_inputs, rois=rois)
-            keys = refine_losses.keys()
-            for key in list(keys):
-                if 'loss' in key and 'refine' not in key:
-                    loss = refine_losses.pop(key)
-                    if isinstance(loss, Sequence):
-                        loss = [item * weight for item in loss]
-                    else:
-                        loss = loss * weight
-                    refine_losses[f'{key}_refine_{i}'] = loss
-            losses.update(refine_losses)
-
-            if i + 1 in range(self.num_refine_stages):
-                rois = self.bbox_head_refine[i].refine_bboxes(*outs, rois=rois)
-
-        return losses
-
-    def predict(self,
-                batch_inputs: Tensor,
-                batch_inputs_ir: Tensor,
-                batch_data_samples: SampleList,
-                rescale: bool = True) -> SampleList:
-        """Predict results from a batch of inputs and data samples with post-
-        processing.
-
-        Args:
-            batch_inputs (Tensor): Inputs with shape (N, C, H, W).
-            batch_inputs_ir (Tensor): Input images of shape (N, C, H, W).
-            batch_data_samples (List[:obj:`DetDataSample`]): The Data
-                Samples. It usually includes information such as
-                `gt_instance`, `gt_panoptic_seg` and `gt_sem_seg`.
-            rescale (bool): Whether to rescale the results.
-                Defaults to True.
-
-        Returns:
-            list[:obj:`DetDataSample`]: Detection results of the
-            input images. Each DetDataSample usually contain
-            'pred_instances'. And the ``pred_instances`` usually
-            contains following keys.
-
-            - scores (Tensor): Classification scores, has a shape
-              (num_instance, )
-            - labels (Tensor): Labels of bboxes, has a shape
-              (num_instances, ).
-            - bboxes (Tensor): Has a shape (num_instances, 5),
-              the last dimension 5 arrange as (x, y, w, h, t).
-        """
-        x = self.extract_feat(batch_inputs, batch_inputs_ir)
-        outs = self.bbox_head_init(x)
-        rois = self.bbox_head_init.filter_bboxes(*outs)
-        for i in range(self.num_refine_stages):
-            x_refine = self.bbox_head_refine[i].feature_refine(x, rois)
-            outs = self.bbox_head_refine[i](x_refine)
-            if i + 1 in range(self.num_refine_stages):
-                rois = self.bbox_head_refine[i].refine_bboxes(*outs, rois)
-
-        batch_img_metas = [
-            data_samples.metainfo for data_samples in batch_data_samples
-        ]
-        predictions = self.bbox_head_refine[-1].predict_by_feat(
-            *outs, rois=rois, batch_img_metas=batch_img_metas, rescale=rescale)
-
-        batch_data_samples = self.add_pred_to_datasample(
-            batch_data_samples, predictions)
-        return batch_data_samples
-
-    def _forward(
-            self,
-            batch_inputs: Tensor,
-            batch_inputs_ir: Tensor,
-            batch_data_samples: OptSampleList = None) -> Tuple[List[Tensor]]:
-        """Network forward process. Usually includes backbone, neck and head
-        forward without any post-processing.
-
-         Args:
-            batch_inputs (Tensor): Inputs with shape (N, C, H, W).
-            batch_inputs_ir (Tensor): Input images of shape (N, C, H, W).
-
-        Returns:
-            tuple[list]: A tuple of features from ``bbox_head`` forward.
-        """
-        x = self.extract_feat(batch_inputs, batch_inputs_ir)
-        outs = self.bbox_head_init(x)
-        rois = self.bbox_head_init.filter_bboxes(*outs)
-        for i in range(self.num_refine_stages):
-            x_refine = self.bbox_head_refine[i].feature_refine(x, rois)
-            outs = self.bbox_head_refine[i](x_refine)
-            if i + 1 in range(self.num_refine_stages):
-                rois = self.bbox_head_refine[i].refine_bboxes(*outs, rois)
-
-        return outs
-
     def extract_feat(self, batch_inputs: Tensor,
                      batch_inputs_ir: Tensor) -> Tuple[Tensor]:
         """Extract features.
@@ -247,7 +69,7 @@ class C2Former(RefineSingleStageDetector):
         
         
 """
-# origin code
+# origin code by maoxuan yuan
 # """
 # import pdb
 

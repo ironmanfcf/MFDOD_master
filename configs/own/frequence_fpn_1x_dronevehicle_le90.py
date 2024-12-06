@@ -1,21 +1,26 @@
 _base_ = [
-     '../_base_/schedules/schedule_1x.py',
     '../_base_/default_runtime.py'
 ]
 
 angle_version = 'le90'
 model = dict(
-    type='mfod.E2EMFD',
+    type='mfod.FrenquenceDet',
     data_preprocessor=dict(
-        type='mfod.MultiDetDataPreprocessor',
+        type='mfod.DataPreprocessor',
+        mean_ir= [123.675, 116.28, 103.53],
+        std_ir=[58.395, 57.12, 57.375],        
         mean=[123.675, 116.28, 103.53],
-        std=[58.395, 57.12, 57.375]),
+        std=[58.395, 57.12, 57.375],
+        bgr_to_rgb=True,
+        pad_size_divisor=32,
+        boxtype2tensor=False),
     backbone=dict(
         type='mfod.LSKNet',
         embed_dims=[64, 128, 320, 512],
         drop_rate=0.1,
         drop_path_rate=0.1,
         depths=[2,2,4,2],
+        # download from https://github.com/zcablii/LSKNet
         init_cfg=dict(type='Pretrained', checkpoint="/opt/data/private/fcf/MFOD_master/pretrained_weights/lsk_s_backbone-e9d2e551.pth"),
         norm_cfg=dict(type='BN', requires_grad=True)),
     neck=dict(
@@ -135,52 +140,56 @@ model = dict(
             max_per_img=2000)))
 
 
-dataset_type = 'mfod.DroneVehicleDataset'
+dataset_type = 'mfod.MMDroneVehicleDataset'
 data_root = '/opt/data/private/fcf/MFOD_master/data/dronevehicle/'
 backend_args = None
 
 train_pipeline = [
-    dict(type='mfod.LoadImagePairFromFile'),
+    dict(type='mfod.LoadPairedImageFromFile'),
     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
     dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),    
-    dict(type='mfod.RResize', img_scale=(712, 840)),
-    dict(type='mfod.PackMultiDetInputs', 
-         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor'))
+    dict(type='mfod.PairedImagesResize', scale=(712,840), keep_ratio=True),
+    dict(
+        type='mfod.PairedImagesRandomFlip',
+        prob=0.25,
+        direction=['horizontal', 'vertical', 'diagonal']),
+    dict(type='mfod.PackedPairedDataDetInputs')
 ]
 
 val_pipeline = [
-    dict(type='mfod.LoadImagePairFromFile', backend_args=backend_args),
-    dict(type='mfod.RResize', img_scale=(712, 840)),
+    dict(type='mfod.LoadPairedImageFromFile', backend_args=backend_args),
+    dict(type='mfod.PairedImagesResize', scale=(712,840), keep_ratio=True),    
     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
     dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),
     dict(
-        type='mfod.PackMultiDetInputs',
-        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
-                   'scale_factor'))
+        type='mfod.PackedPairedDataDetInputs',
+        meta_keys=('img_id', 'img_path', 'img_ir_path',
+                                  'ori_shape', 'img_shape','img_shape_ir', 'scale_factor'))
 ]
 
 test_pipeline = [
-    dict(type='mmdet.LoadImagePairFromFile', backend_args=backend_args),
-    dict(type='mfod.RResize', img_scale=(712, 840)), 
+    dict(type='mfod.LoadPairedImageFromFile', backend_args=backend_args),
+    dict(type='mfod.PairedImagesResize', scale=(712,840), keep_ratio=True),  
     dict(
-        type='mfod.PackMultiDetInputs',
-        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
-                   'scale_factor'))
+        type='mfod.PackedPairedDataDetInputs',
+        meta_keys=('img_id', 'img_path', 'img_ir_path',
+                                  'ori_shape', 'img_shape','img_shape_ir', 'scale_factor'))
 ]
 
-
-
 train_dataloader = dict(
+    # batch_size=4,  #too large for 24GB GPU
+    # num_workers=8,
     batch_size=2,
-    num_workers=2,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     batch_sampler=None,
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'train/rgb/labels/',
-        data_prefix=dict(img_path=data_root + 'train/rgb/images/'),
+        ann_file=data_root + 'train/labels/',
+        # data_prefix=dict(img_path=data_root + 'train/rgb/images/'),
+        data_prefix=dict(img_path='train/rgb/images/', img_ir_path='train/ir/images/'),
         filter_cfg=dict(filter_empty_gt=True),
         pipeline=train_pipeline))
 
@@ -193,8 +202,8 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'test/rgb/labels/',
-        data_prefix=dict(img_path=data_root + 'test/rgb/images/'),
+        ann_file=data_root + 'test/ir/labels/',
+        data_prefix=dict(img_path='test/rgb/images/', img_ir_path='test/ir/images/'),
         test_mode=True,
         pipeline=val_pipeline))
 test_dataloader = val_dataloader
@@ -202,35 +211,41 @@ test_dataloader = val_dataloader
 val_evaluator = dict(type='DOTAMetric', metric='mAP')
 test_evaluator = val_evaluator
 
-# train_pipeline = [
-#     dict(type='LoadImagePairFromFile', spectrals=('rgb', 'ir')),
-#     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
-#     dict(type='RResize', img_scale=(712, 840)),
-#     dict(type='DefaultFormatBundle_m'),   #这个是用于img: (1)transpose, (2)to tensor, (3)to DataContainer (stack=True)
-#     dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels'])
-# ]
+# training schedule for 1x
+train_cfg = dict(type='EpochBasedTrainLoop', max_epochs=12, val_interval=1)
+val_cfg = dict(type='ValLoop')
+test_cfg = dict(type='TestLoop')
 
-# val_pipeline = [
-#     dict(type='LoadImagePairFromFile', spectrals=('rgb', 'ir')),
-#     dict(
-#         type='MultiScaleFlipAug',
-#         img_scale=(712, 840),
-#         flip=False,
-#         transforms=[
-#             dict(type='RResize'),
-
-#             dict(type='Pad', size_divisor=32),
-#             dict(type='DefaultFormatBundle_m'),
-#             dict(type='Collect', keys=['img'])
-#         ])
-# ]
-
-
-
-
+# learning rate
+param_scheduler = [
+    dict(
+        type='LinearLR',
+        start_factor=1.0 / 3,
+        by_epoch=False,
+        begin=0,
+        end=500),
+    dict(
+        type='MultiStepLR',
+        begin=0,
+        end=12,
+        by_epoch=True,
+        milestones=[8, 11],
+        gamma=0.1)
+]
 
 # optimizer
 optim_wrapper = dict(
     type='OptimWrapper',
-    optimizer=dict(type='AdamW', _delete_=True,lr=0.0001, betas=(0.9, 0.999), weight_decay=0.05),
+    optimizer=dict(type='AdamW', lr=0.0001, betas=(0.9, 0.999), weight_decay=0.05),
     clip_grad=dict(max_norm=35, norm_type=2))
+
+
+vis_backends = [dict(type='LocalVisBackend'),
+                dict(
+                    init_kwargs=dict(
+                        group='ir_rgb',
+                        name='frequence_lsk_fpn_dronevehicle_le90',
+                        project='DroneVehicle'),
+                    type='WandbVisBackend')]
+visualizer = dict(
+    type='RotLocalVisualizer', vis_backends=vis_backends, name='visualizer')

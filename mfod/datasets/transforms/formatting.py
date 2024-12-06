@@ -121,6 +121,6 @@ class PackedPairedDataDetInputs(PackDetInputs):
         data_sample.set_metainfo(img_meta)
         packed_results['data_samples'] = data_sample
 
-        return packed_results  # 输入模型的字典?
+        return packed_results  
 
 

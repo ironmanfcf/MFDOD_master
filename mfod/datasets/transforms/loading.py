@@ -7,7 +7,7 @@ import pycocotools.mask as maskUtils
 import torch
 from mmcv.transforms import BaseTransform
 from mmcv.transforms import LoadImageFromFile
-from mmcv.transforms import LoadAnnotations as MMCV_LoadAnnotations
+from mmdet.datasets.transforms import LoadAnnotations 
 from mmengine.fileio import get
 from mmengine.structures import BaseDataElement
 import mmengine.fileio as fileio
@@ -37,6 +37,8 @@ class LoadPairedImageFromFile(LoadImageFromFile):
     - img_ir
     - img_shape
     - ori_shape
+    - img_shape_ir
+    - ori_shape_ir
 
     """
     def transform(self, results):
@@ -75,7 +77,7 @@ class LoadPairedImageFromFile(LoadImageFromFile):
             else:
                 raise e
         assert img is not None, f'failed to load image: {filename}'
-        assert ir_img is not None, f'failed to load LWIR image: {filename_ir}'
+        assert ir_img is not None, f'failed to load IR image: {filename_ir}'
 
        
         if self.to_float32:

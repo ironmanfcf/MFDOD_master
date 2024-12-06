@@ -1,13 +1,13 @@
 # dataset settings
 dataset_type = 'mfod.MMDroneVehicleDataset'
-data_root = '/opt/data/private/fcf/MFOD_master/data/clip_dronevehicle/'
+data_root = '/opt/data/private/fcf/MFOD_master/data/dronevehicle/'
 backend_args = None
 
 train_pipeline = [
     dict(type='mfod.LoadPairedImageFromFile'),
     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
     dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),    
-    dict(type='mfod.PairedImagesResize', scale=(512, 640), keep_ratio=True),
+    dict(type='mfod.PairedImagesResize', scale=(712, 840), keep_ratio=True),
     dict(
         type='mfod.PairedImagesRandomFlip',
         prob=0.5,
@@ -17,7 +17,7 @@ train_pipeline = [
 
 val_pipeline = [
     dict(type='mfod.LoadPairedImageFromFile', backend_args=backend_args),
-    dict(type='mfod.PairedImagesResize', scale=(512, 640), keep_ratio=True),    
+    dict(type='mfod.PairedImagesResize', scale=(712, 840), keep_ratio=True),    
     dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
     dict(type='ConvertBoxType', box_type_mapping=dict(gt_bboxes='rbox')),
     dict(
@@ -28,7 +28,7 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='mfod.LoadPairedImageFromFile', backend_args=backend_args),
-    dict(type='mfod.PairedImagesResize', scale=(512, 640), keep_ratio=True),  
+    dict(type='mfod.PairedImagesResize', scale=(712, 840), keep_ratio=True),  
     dict(
         type='mfod.PackedPairedDataDetInputs',
         meta_keys=('img_id', 'img_path', 'img_ir_path',
@@ -59,7 +59,7 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'test/rgb/labels/',
+        ann_file=data_root + 'test/labels/',
         data_prefix=dict(img_path='train/rgb/images/', img_ir_path='train/ir/images/'),
         test_mode=True,
         pipeline=val_pipeline))
