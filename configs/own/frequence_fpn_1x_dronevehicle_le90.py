@@ -1,12 +1,12 @@
 _base_ = [
-    '../_base_/default_runtime.py'
+    './_base_/default_runtime.py'
 ]
 
 angle_version = 'le90'
 model = dict(
-    type='mfod.FrenquenceDet',
+    type='mfod.FrequenceDet',
     data_preprocessor=dict(
-        type='mfod.DataPreprocessor',
+        type='mfod.PairedDetDataPreprocessor',
         mean_ir= [123.675, 116.28, 103.53],
         std_ir=[58.395, 57.12, 57.375],        
         mean=[123.675, 116.28, 103.53],

@@ -12,6 +12,6 @@ __all__ = [
     'C2Former',
     'RefineSingleStageDetectorTwoStream',
     'E2EMFD',
-    'Two_Stage_TS'
+    'Two_Stage_TS',
     'FrequenceDet'
 ]
