@@ -108,11 +108,41 @@ class DWTTransformerattentionlayer(nn.Module):
     def forward(self, x_vis, x_ir):
         # 对可见光特征进行小波变换
         yl_vis, yh_vis = self.wavelet.dwt2_transform(x_vis)
-        LL_vis, LH_vis, HL_vis, HH_vis = yl_vis, yh_vis[0][:, :, 0, :, :], yh_vis[0][:, :, 1, :, :], yh_vis[0][:, :, 2, :, :]
+        LL_vis, LH_vis, HL_vis, HH_vis = (
+            yl_vis,
+            yh_vis[0][:, :, 0, :, :],
+            yh_vis[0][:, :, 1, :, :],
+            yh_vis[0][:, :, 2, :, :]
+        )
 
         # 对红外特征进行小波变换
         yl_ir, yh_ir = self.wavelet.dwt2_transform(x_ir)
-        LL_ir, LH_ir, HL_ir, HH_ir = yl_ir, yh_ir[0][:, :, 0, :, :], yh_ir[0][:, :, 1, :, :], yh_ir[0][:, :, 2, :, :]
+        LL_ir, LH_ir, HL_ir, HH_ir = (
+            yl_ir,
+            yh_ir[0][:, :, 0, :, :],
+            yh_ir[0][:, :, 1, :, :],
+            yh_ir[0][:, :, 2, :, :]
+        )
+
+        # 检查并调整特征形状
+        def adjust_shape(tensor_a, tensor_b):
+            if tensor_a.shape != tensor_b.shape:
+                min_h = min(tensor_a.shape[-2], tensor_b.shape[-2])
+                min_w = min(tensor_a.shape[-1], tensor_b.shape[-1])
+                tensor_a = tensor_a[..., :min_h, :min_w]
+                tensor_b = tensor_b[..., :min_h, :min_w]
+            return tensor_a, tensor_b
+
+        LL_vis, HH_ir = adjust_shape(LL_vis, HH_ir)
+        HH_vis, LL_ir = adjust_shape(HH_vis, LL_ir)
+        LH_vis, HL_ir = adjust_shape(LH_vis, HL_ir)
+        HL_vis, LH_ir = adjust_shape(HL_vis, LH_ir)
+
+        # 保存原始分量用于残差连接
+        LL_vis_orig, HH_ir_orig = LL_vis.clone(), HH_ir.clone()
+        HH_vis_orig, LL_ir_orig = HH_vis.clone(), LL_ir.clone()
+        LH_vis_orig, HL_ir_orig = LH_vis.clone(), HL_ir.clone()
+        HL_vis_orig, LH_ir_orig = HL_vis.clone(), LH_ir.clone()
 
         # 对不同模态间的分量进行 CBAM 调制
         LL_vis, HH_ir = self.trans_LL_HH(LL_vis, HH_ir)
@@ -120,21 +150,61 @@ class DWTTransformerattentionlayer(nn.Module):
         LH_vis, HL_ir = self.trans_LH_HL(LH_vis, HL_ir)
         HL_vis, LH_ir = self.trans_HL_LH(HL_vis, LH_ir)
 
+        # 添加残差连接
+        LL_vis += LL_vis_orig
+        HH_ir += HH_ir_orig
+        HH_vis += HH_vis_orig
+        LL_ir += LL_ir_orig
+        LH_vis += LH_vis_orig
+        HL_ir += HL_ir_orig
+        HL_vis += HL_vis_orig
+        LH_ir += LH_ir_orig
+
         # 重建处理过后的分量
         yl_vis = LL_vis
-        new_yh_vis = torch.cat([LH_vis.unsqueeze(2), HL_vis.unsqueeze(2), HH_vis.unsqueeze(2)], dim=2)
+        new_yh_vis = torch.stack([LH_vis, HL_vis, HH_vis], dim=2)
         yh_vis[0] = new_yh_vis
 
         yl_ir = LL_ir
-        new_yh_ir = torch.cat([LH_ir.unsqueeze(2), HL_ir.unsqueeze(2), HH_ir.unsqueeze(2)], dim=2)
+        new_yh_ir = torch.stack([LH_ir, HL_ir, HH_ir], dim=2)
         yh_ir[0] = new_yh_ir
+
+        # 检查并调整逆小波变换前的系数形状
+        if yl_vis.shape != yl_ir.shape:
+            min_h = min(yl_vis.shape[-2], yl_ir.shape[-2])
+            min_w = min(yl_vis.shape[-1], yl_ir.shape[-1])
+            yl_vis = yl_vis[..., :min_h, :min_w]
+            yl_ir = yl_ir[..., :min_h, :min_w]
+
+        if yh_vis[0].shape != yh_ir[0].shape:
+            min_h = min(yh_vis[0].shape[-2], yh_ir[0].shape[-2])
+            min_w = min(yh_vis[0].shape[-1], yh_ir[0].shape[-1])
+            yh_vis[0] = yh_vis[0][..., :min_h, :min_w]
+            yh_ir[0] = yh_ir[0][..., :min_h, :min_w]
 
         # 逆小波变换重建特征
         processed_feat_vis = self.wavelet.idwt2_transform(yl_vis, yh_vis)
         processed_feat_ir = self.wavelet.idwt2_transform(yl_ir, yh_ir)
 
-        return (processed_feat_vis + processed_feat_ir) / 2  
-    
+        # 检查并调整重建后的特征形状
+        if processed_feat_vis.shape != processed_feat_ir.shape:
+            min_h = min(processed_feat_vis.shape[-2], processed_feat_ir.shape[-2])
+            min_w = min(processed_feat_vis.shape[-1], processed_feat_ir.shape[-1])
+            processed_feat_vis = processed_feat_vis[..., :min_h, :min_w]
+            processed_feat_ir = processed_feat_ir[..., :min_h, :min_w]
+
+        # 添加全局残差连接
+        output = (processed_feat_vis + processed_feat_ir) / 2
+
+        if output.shape != x_vis.shape or output.shape != x_ir.shape:
+            min_h = min(output.shape[-2], x_vis.shape[-2], x_ir.shape[-2])
+            min_w = min(output.shape[-1], x_vis.shape[-1], x_ir.shape[-1])
+            output = output[..., :min_h, :min_w]
+            x_vis = x_vis[..., :min_h, :min_w]
+            x_ir = x_ir[..., :min_h, :min_w]
+        output += (x_vis + x_ir) / 2
+
+        return output
     
 class WaveletTransform(nn.Module):
     def __init__(self, wavelet='haar'):
