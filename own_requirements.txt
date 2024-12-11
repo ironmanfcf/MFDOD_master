@@ -1,0 +1,3 @@
+wandb
+pytorch_wavelets
+PyWavelets

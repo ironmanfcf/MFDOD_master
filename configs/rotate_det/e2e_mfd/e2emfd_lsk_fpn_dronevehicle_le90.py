@@ -212,7 +212,7 @@ val_evaluator = dict(type='DOTAMetric', metric='mAP')
 test_evaluator = val_evaluator
 
 # training schedule for 1x
-train_cfg = dict(type='EpochBasedTrainLoop', max_epochs=12, val_interval=1)
+train_cfg = dict(type='mfod.GMTAEpochBasedTrainLoop', max_epochs=12, val_interval=1)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 
@@ -234,18 +234,25 @@ param_scheduler = [
 ]
 
 # optimizer
+# optim_wrapper = dict(
+#     type='OptimWrapper',
+#     optimizer=dict(type='AdamW', lr=0.0001, betas=(0.9, 0.999), weight_decay=0.05),
+#     clip_grad=dict(max_norm=35, norm_type=2))
+
 optim_wrapper = dict(
-    type='OptimWrapper',
+    type='mfod.GMTAOptimWrapper',
     optimizer=dict(type='AdamW', lr=0.0001, betas=(0.9, 0.999), weight_decay=0.05),
-    clip_grad=dict(max_norm=35, norm_type=2))
+    clip_grad=dict(max_norm=35, norm_type=2)
+)
 
 
 vis_backends = [dict(type='LocalVisBackend'),
-                dict(
-                    init_kwargs=dict(
-                        group='ir_rgb',
-                        name='e2emfd_lsk_fpn_dronevehicle_le90',
-                        project='DroneVehicle'),
-                    type='WandbVisBackend')]
+                # dict(
+                #     init_kwargs=dict(
+                #         group='ir_rgb',
+                #         name='e2emfd_lsk_fpn_dronevehicle_le90',
+                #         project='DroneVehicle'),
+                #     type='WandbVisBackend')
+                ]
 visualizer = dict(
     type='RotLocalVisualizer', vis_backends=vis_backends, name='visualizer')

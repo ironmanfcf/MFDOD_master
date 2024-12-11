@@ -38,7 +38,7 @@ from mmdet.models import TwoStageDetector
 
 @MODELS.register_module()
 class Two_Stage_TS(TwoStageDetector):
-    """Base class for rotated two-stage detectors.
+    """Base class for rotated two-stage detectors.(two-stream for RGBT)
 
     Two-stage detectors typically consisting of a region proposal network and a
     task-specific regression head.

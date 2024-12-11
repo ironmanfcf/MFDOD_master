@@ -19,6 +19,7 @@ from typing import Dict, List, Tuple, Union
 import torch
 from mmengine.model import BaseModel
 from torch import Tensor
+from mmengine.utils import is_list_of
 
 from mmdet.structures import DetDataSample, OptSampleList, SampleList
 from mmdet.utils import InstanceList, OptConfigType, OptMultiConfig
@@ -26,7 +27,8 @@ from mmdet.utils import InstanceList, OptConfigType, OptMultiConfig
 from ..fusion.e2emfd_fusion import FusionNet
 from ..losses import DetcropPixelLoss
 import matplotlib.pyplot as plt
-
+from mmengine.optim import OptimWrapper
+from collections import OrderedDict
 
 from mfod.registry import MODELS
 
@@ -571,3 +573,102 @@ class E2EMFD(TwoStageDetector):
         
         return clr
 
+
+    def train_step(self, data: Union[dict, tuple, list],
+                   shared_parameter, 
+                   task_specific_params,
+                   iter,
+                   optim_wrapper: OptimWrapper) -> Dict[str, torch.Tensor]:
+        """Implements the default model training process including
+        preprocessing, model forward propagation, loss calculation,
+        optimization, and back-propagation.
+
+        During non-distributed training. If subclasses do not override the
+        :meth:`train_step`, :class:`EpochBasedTrainLoop` or
+        :class:`IterBasedTrainLoop` will call this method to update model
+        parameters. The default parameter update process is as follows:
+
+        1. Calls ``self.data_processor(data, training=False)`` to collect
+           batch_inputs and corresponding data_samples(labels).
+        2. Calls ``self(batch_inputs, data_samples, mode='loss')`` to get raw
+           loss
+        3. Calls ``self.parse_losses`` to get ``parsed_losses`` tensor used to
+           backward and dict of loss tensor used to log messages.
+        4. Calls ``optim_wrapper.update_params(loss)`` to update model.
+
+        Args:
+            data (dict or tuple or list): Data sampled from dataset.
+            optim_wrapper (OptimWrapper): OptimWrapper instance
+                used to update model parameters.
+
+        Returns:
+            Dict[str, torch.Tensor]: A ``dict`` of tensor for logging.
+        """
+        # Enable automatic mixed precision training context.
+        with optim_wrapper.optim_context(self):
+            data = self.data_preprocessor(data, True)
+            losses = self._run_forward(data, mode='loss')  # type: ignore
+        parsed_losses, log_vars = self.parse_losses(losses)  # type: ignore
+
+        
+#---------------------------modifications------------------------
+        del parsed_losses['acc']
+        
+        # if iter % 1000 ==0 and iter>=1000: #从第1000个iter开始对齐，每隔1000对齐一次
+        if iter == 2:   
+            
+            # runner.model.zero_grad()
+            # self.balancer.step_with_model(
+            #     losses = runner.outputs['loss'],
+            #     shared_params = shared_parameter,
+            #     task_specific_params = task_specific_params,
+            #     last_shared_layer_params = None,
+            #     iter=runner.iter
+            # )
+            
+            optim_wrapper.gmta_update_params(parsed_losses,
+                                             shared_parameter, 
+                                             task_specific_params,
+                                             iter)
+        else:
+            # (runner.outputs['loss']['fusion_loss'] + runner.outputs['loss']['detection_loss']).backward()  
+            optim_wrapper.update_params(parsed_losses['fusion_loss']+parsed_losses['detection_loss'])
+        # optim_wrapper.update_params(parsed_losses)
+        return log_vars
+
+
+    def parse_losses(
+        self, losses: Dict[str, torch.Tensor]
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        """Parses the raw outputs (losses) of the network.
+
+        Args:
+            losses (dict): Raw output of the network, which usually contain
+                losses and other necessary information.
+
+        Returns:
+            tuple[Tensor, dict]: There are two elements. The first is the
+            loss tensor passed to optim_wrapper which may be a weighted sum
+            of all losses, and the second is log_vars which will be sent to
+            the logger.
+        """
+        log_vars = []
+        for loss_name, loss_value in losses.items():
+            if isinstance(loss_value, torch.Tensor):
+                log_vars.append([loss_name, loss_value.mean()])
+            elif is_list_of(loss_value, torch.Tensor):
+                log_vars.append(
+                    [loss_name,
+                     sum(_loss.mean() for _loss in loss_value)])
+            else:
+                raise TypeError(
+                    f'{loss_name} is not a tensor or list of tensors')
+
+        loss = sum(value for key, value in log_vars if 'loss' in key)
+        log_vars.insert(0, ['loss', loss])
+        log_vars = OrderedDict(log_vars)  # type: ignore
+        ###
+        # 这里的方法与E2EMFD源代码中一致，送入优化器的损失不是求和后的损失，
+        # 而是任务分离的损失，源代码中直接重写了BaseDetector的代码，导致运行其他方法时会出错。
+        # return loss, log_vars  # type: ignore
+        return losses, log_vars  # type: ignore    
